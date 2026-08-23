@@ -14,6 +14,7 @@ from app.application.commands.upload_document import UploadDocumentCommand
 from app.application.queries.get_clauses import GetClausesQuery
 from app.domain.entities.document import DocumentStatus
 from app.domain.schemas.clause import ClauseListResponse
+from app.domain.schemas.extracted_clause import ClassifiedClauseListResponse
 
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
@@ -41,9 +42,9 @@ async def parse_document(
     return DocumentStatusResponse(document_id=document_id, status=DocumentStatus.PARSING)
 
 
-@router.get("/{document_id}/clauses", response_model=ClauseListResponse)
+@router.get("/{document_id}/clauses", response_model=ClauseListResponse | ClassifiedClauseListResponse)
 async def get_clauses(
     document_id: str,
     query: GetClausesQuery = Depends(get_clauses_query),
-) -> ClauseListResponse:
+) -> ClauseListResponse | ClassifiedClauseListResponse:
     return query.execute(document_id)

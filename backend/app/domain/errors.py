@@ -46,6 +46,23 @@ class DocumentNotFoundError(DomainError):
     user_message = "找不到指定的文件。"
 
 
+class LLMOutputInvalidError(DomainError):
+    """Retryable: JSON parse / Pydantic validation / summary-grounding failure
+    for a single clause. Caught inside ClassifyClausesCommand — see
+    specs/002-llm-clause-classification/design.md."""
+
+    error_code = "LLM_OUTPUT_INVALID"
+    user_message = "分析結果格式不正確。"
+
+
+class LLMProviderUnavailableError(DomainError):
+    """Non-retryable: connectivity/timeout/auth failure. Fails the whole
+    document rather than a single clause."""
+
+    error_code = "LLM_PROVIDER_UNAVAILABLE"
+    user_message = "分析服務暫時無法使用，請稍後再試。"
+
+
 _ERROR_CODE_REGISTRY: dict[str, type[DomainError]] = {
     cls.error_code: cls
     for cls in (
@@ -55,6 +72,8 @@ _ERROR_CODE_REGISTRY: dict[str, type[DomainError]] = {
         TrackedChangesNotSupportedError,
         DocumentNotReadyError,
         DocumentNotFoundError,
+        LLMOutputInvalidError,
+        LLMProviderUnavailableError,
     )
 }
 

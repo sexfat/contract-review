@@ -4,6 +4,7 @@ import threading
 
 from app.domain.entities.document import Document, DocumentStatus
 from app.domain.schemas.clause import ParsedClause
+from app.domain.schemas.extracted_clause import ExtractedClause
 
 
 class InMemoryDocumentRepository:
@@ -43,5 +44,22 @@ class InMemoryClauseRepository:
             self._clauses[document_id] = list(clauses)
 
     def list_for_document(self, document_id: str) -> list[ParsedClause]:
+        with self._lock:
+            return list(self._clauses.get(document_id, []))
+
+
+class InMemoryClauseClassificationRepository:
+    """Kept separate from InMemoryClauseRepository so 001's storage/contract
+    is never touched by 002 (design.md "回滾方式")."""
+
+    def __init__(self) -> None:
+        self._clauses: dict[str, list[ExtractedClause]] = {}
+        self._lock = threading.Lock()
+
+    def replace_for_document(self, document_id: str, clauses: list[ExtractedClause]) -> None:
+        with self._lock:
+            self._clauses[document_id] = list(clauses)
+
+    def list_for_document(self, document_id: str) -> list[ExtractedClause]:
         with self._lock:
             return list(self._clauses.get(document_id, []))

@@ -9,6 +9,8 @@ class DocumentStatus(str, Enum):
     UPLOADED = "uploaded"
     PARSING = "parsing"
     PARSED = "parsed"
+    CLASSIFYING = "classifying"
+    CLASSIFIED = "classified"
     FAILED = "failed"
 
 

@@ -106,19 +106,27 @@ class LLMProvider(Protocol):
   `LLMProviderUnavailableError`。
 - 收到回應後先嘗試 `json.loads` 再以 `LLMClassificationResult` 驗證；任何失敗都包裝為 `LLMOutputInvalidError`，
   並記錄「驗證失敗」（不記錄原文／回應內容）。
+- **例外一律以 `raise ... from None` 包裝、切斷 chain**：底層例外（例如 Pydantic `ValidationError`）的訊息可能
+  夾帶 LLM 原始輸出（進而可能包含合約原文片段，因為原文本來就在 prompt 裡）；若不切斷 chain，
+  `app/main.py` 的 `exc_info` log 會把整條 traceback（含被包裝的原始例外訊息）印出來，等同讓合約文字流入
+  log。切斷後 log 只會看到 `LLMOutputInvalidError`／`LLMProviderUnavailableError` 自身的 `error_code`。
 
 ### 設定（`app/infrastructure/llm/config.py`）
 
 ```python
 class LLMSettings(BaseSettings):
-    ollama_api_key: str = Field(validation_alias="OLLAMA_API_KEY")
-    ollama_base_url: str = Field(default="https://ollama.com", validation_alias="OLLAMA_BASE_URL")
-    ollama_model: str = Field(default="gemma4:31b-cloud", validation_alias="OLLAMA_MODEL")
+    ollama_api_key: str = Field(min_length=1, validation_alias="OLLAMA_API_KEY")
+    ollama_base_url: AnyHttpUrl = Field(default=AnyHttpUrl("https://ollama.com"), validation_alias="OLLAMA_BASE_URL")
+    ollama_model: str = Field(min_length=1, default="gemma4:31b-cloud", validation_alias="OLLAMA_MODEL")
+    request_timeout_seconds: float = Field(default=30.0, gt=0)
 ```
 
-- 啟動時以 `python-dotenv` 讀取專案根目錄 `.env`（已在前置工作建立 `.env.example`）。
-- `OLLAMA_API_KEY` 未設定時，`get_llm_provider()`（`app/api/dependencies.py` 新增）拋出設定錯誤並讓應用程式
-  啟動失敗（fail fast），而不是靜默呼叫失敗的 provider。
+- 以 `python-dotenv` 讀取專案根目錄 `.env`（已在前置工作建立 `.env.example`）。
+- `OLLAMA_API_KEY` 未設定（或 `OLLAMA_BASE_URL` 不是合法 URL、`request_timeout_seconds` 非正數）時，
+  `LLMSettings` 建構直接拋出 Pydantic `ValidationError`。**Fail fast 的時機是 `get_llm_provider()`
+  （`app/api/dependencies.py`）作為 FastAPI 依賴第一次被解析的當下**，也就是使用者第一次呼叫
+  `POST /classify` 時 —— 刻意不在應用程式 process 啟動時強制驗證，讓 001 的上傳／解析／健康檢查端點在未設定
+  LLM 金鑰的環境（本機開發、CI）仍可正常運作。
 - 新增依賴（`backend/pyproject.toml`）：`langchain-ollama`、`python-dotenv`、`pydantic-settings`。
 
 ## 白話摘要防呆（`app/domain/services/summary_guard.py`）

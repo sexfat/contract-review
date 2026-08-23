@@ -127,3 +127,35 @@ prompt 內容。
    觸發重試或標記無法可靠分析。合約編號、當事人名稱等其餘實體暫不納入本階段防呆，留待後續 feature 視需要擴充。
 4. **`POST /classify` 為整份文件的（重）分類操作**，會重新分類該文件所有 clause；不在本 feature 提供
    「僅重跑單一 clause」的端點，此需求留待有實際使用情境時再開新 feature。
+
+## 驗收紀錄
+
+- 實作位置：`backend/app`（domain/application/infrastructure/api，沿用 001 的分層）；測試位置：`backend/tests`。
+- `uv run pytest`：58 passed（001 的 27 個測試維持通過 + 002 新增 31 個 unit／integration／API contract
+  測試），全程使用 `FakeLLMProvider`，不呼叫真實 Ollama 服務。
+- 已請 Codex 對照 spec.md／design.md 做第二輪獨立驗證，發現並修正：
+  - `SummaryGuard` 正規表示式覆蓋不足：`NT$1,000`（無 `元`/`%` 後綴）、`百分之30`（阿拉伯數字）、
+    `西元2026年`（西元年份）三種樣式原本會被漏判為「已依原文」，已修正並補上對應回歸測試。
+  - `OllamaClassificationProvider` 例外改以 `raise ... from None` 切斷 chain：避免底層例外（例如 Pydantic
+    `ValidationError`）夾帶 LLM 原始輸出、經 `app/main.py` 的 `exc_info` log 印出，等同合約文字外洩風險。
+  - `LLMSettings` 補上 `ollama_base_url`（`AnyHttpUrl`）與 `request_timeout_seconds`（`gt=0`）的型別驗證。
+  - 更新 design.md 措辭：`OLLAMA_API_KEY` 的 fail-fast 時機是「使用者第一次呼叫 `POST /classify`」（作為
+    FastAPI 依賴被解析時），而非整個應用程式 process 啟動時——刻意如此設計，讓未設定 LLM 金鑰的環境（本機
+    開發、CI）仍可使用 001 的上傳／解析端點；原 design.md 用詞「啟動失敗」易生誤解，已澄清。
+- Acceptance criteria 1、3、4、5、6、7：以自動化測試涵蓋（`tests/unit/test_classify_clauses_command.py`、
+  `tests/unit/test_summary_guard.py`、`tests/integration/test_classification_fixture_flow.py`、
+  `tests/api/test_classification_api.py`）。
+- Acceptance criteria 2（人工覆核至少 10 個 clause 的真實 LLM 輸出）**尚未完成**：本開發環境未配置
+  `OLLAMA_API_KEY`，無法呼叫真實 Ollama Cloud 服務。程式碼層面已用 `FakeLLMProvider` 驗證重試／fallback／
+  防呆邏輯正確；但實際模型輸出品質（分類準確度、摘要用詞是否恰當）需在有金鑰的環境執行
+  `POST /documents/{id}/classify` 後另行覆核並補上記錄。
+
+## 已知限制
+
+- Acceptance criteria 2 的真實 LLM 人工覆核未完成（見上方驗收紀錄），部署前必須補做。
+- `SummaryGuard` 的正規表示式僅涵蓋金額／日期；合約編號、當事人名稱等其他實體暫不防呆（已於「已確認決策」
+  第 3 點載明）。
+- `POST /classify` 為整份文件重跑，無法只重新分類單一 clause。
+- Repository 為新增的獨立 `InMemoryClauseClassificationRepository`，未接 PostgreSQL；006 導入資料庫時
+  需同時規劃 `clauses`／`extracted_clauses` 兩張表的 migration。
+- 尚未實作前端顯示分類結果；留待 004-vue-review-workbench。
