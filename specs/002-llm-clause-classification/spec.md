@@ -131,7 +131,7 @@ prompt 內容。
 ## 驗收紀錄
 
 - 實作位置：`backend/app`（domain/application/infrastructure/api，沿用 001 的分層）；測試位置：`backend/tests`。
-- `uv run pytest`：58 passed（001 的 27 個測試維持通過 + 002 新增 31 個 unit／integration／API contract
+- `uv run pytest`：72 passed（001 的 27 個測試維持通過 + 002 新增 45 個 unit／integration／API contract
   測試），全程使用 `FakeLLMProvider`，不呼叫真實 Ollama 服務。
 - 已請 Codex 對照 spec.md／design.md 做第二輪獨立驗證，發現並修正：
   - `SummaryGuard` 正規表示式覆蓋不足：`NT$1,000`（無 `元`/`%` 後綴）、`百分之30`（阿拉伯數字）、
@@ -142,19 +142,31 @@ prompt 內容。
   - 更新 design.md 措辭：`OLLAMA_API_KEY` 的 fail-fast 時機是「使用者第一次呼叫 `POST /classify`」（作為
     FastAPI 依賴被解析時），而非整個應用程式 process 啟動時——刻意如此設計，讓未設定 LLM 金鑰的環境（本機
     開發、CI）仍可使用 001 的上傳／解析端點；原 design.md 用詞「啟動失敗」易生誤解，已澄清。
+- 真實 LLM 覆核（見下方）另外發現並修正一個 `SummaryGuard` 誤判：金額／百分比防呆從「逐字子字串比對」改為
+  「數值比較」（新增 `app/domain/services/chinese_numeral.py` 剖析中文數字），讓「百分之三十」與「30%」視為
+  同一數值，不再誤判為無依據；日期防呆維持逐字比對（改寫頻率與風險較低，本輪不處理）。
 - Acceptance criteria 1、3、4、5、6、7：以自動化測試涵蓋（`tests/unit/test_classify_clauses_command.py`、
   `tests/unit/test_summary_guard.py`、`tests/integration/test_classification_fixture_flow.py`、
   `tests/api/test_classification_api.py`）。
-- Acceptance criteria 2（人工覆核至少 10 個 clause 的真實 LLM 輸出）**尚未完成**：本開發環境未配置
-  `OLLAMA_API_KEY`，無法呼叫真實 Ollama Cloud 服務。程式碼層面已用 `FakeLLMProvider` 驗證重試／fallback／
-  防呆邏輯正確；但實際模型輸出品質（分類準確度、摘要用詞是否恰當）需在有金鑰的環境執行
-  `POST /documents/{id}/classify` 後另行覆核並補上記錄。
+- Acceptance criteria 2（人工覆核至少 10 個 clause 的真實 LLM 輸出）**已完成**：以使用者提供的 `OLLAMA_API_KEY`
+  對 001 三份 fixture（共 12 個 clause）呼叫真實 `gemma4:31b-cloud` 執行分類。結果：
+  - 12/12 clause 皆成功分類（無 `requires_human_review` fallback），`confidence` 介於 0.95–1.00。
+  - 逐一比對原文，摘要未出現原文未提及的金額、日期或義務；金額／百分比數值與原文一致。
+  - 觀察到一個真實的防呆誤判並已修正：LLM 經常把「百分之三十」改寫為「30%」（數值相同、僅數字系統不同），
+    原本的逐字子字串比對會誤判為「原文無依據」而觸發不必要的重試／fallback。已改為數值比較（見下方
+    `SummaryGuard` 修正），修正後兩次執行皆無誤判。
+  - 觀察到一個分類上的灰色地帶（非缺陷）：沒有條號的前言／定義段落（`unstructured-*`），LLM 有時會依內容
+    分類為 `scope`／`payment` 而非 `other`（例如「雙方同意就本開發案付款事宜訂立合約」被分為 `payment`）。
+    這不是事實臆造，但屬於分類邊界模糊；記錄於下方已知限制，暫不視為需要立即修正的缺陷。
 
 ## 已知限制
 
-- Acceptance criteria 2 的真實 LLM 人工覆核未完成（見上方驗收紀錄），部署前必須補做。
-- `SummaryGuard` 的正規表示式僅涵蓋金額／日期；合約編號、當事人名稱等其他實體暫不防呆（已於「已確認決策」
-  第 3 點載明）。
+- `unstructured-*`（無條號前言／定義段落）有時會被 LLM 分類為實質條款類型（如 `scope`／`payment`）而非
+  `other`；不是事實臆造，屬於分類邊界模糊，留待後續視實際使用回饋決定是否要在 prompt 中額外強調「無條號內容
+  優先分類為 other」。
+- `SummaryGuard` 的金額／百分比防呆已改為數值比較，但日期防呆仍為逐字子字串比對；若 LLM 把「西元2026年」
+  改寫為「民國115年」等跨曆法改寫，會被誤判為無依據，留待後續視誤判率決定是否加入曆法換算。
+- 合約編號、當事人名稱等其他實體暫不防呆（已於「已確認決策」第 3 點載明）。
 - `POST /classify` 為整份文件重跑，無法只重新分類單一 clause。
 - Repository 為新增的獨立 `InMemoryClauseClassificationRepository`，未接 PostgreSQL；006 導入資料庫時
   需同時規劃 `clauses`／`extracted_clauses` 兩張表的 migration。

@@ -54,7 +54,7 @@ uv run python tests/fixtures_gen/generate_fixtures.py
 ### M2（002）
 
 - `POST /classify` 為整份文件的（重）分類操作，不提供單一 clause 重跑。
-- 摘要防呆僅涵蓋常見金額／日期樣式（見 `app/domain/services/summary_guard.py`），合約編號、當事人名稱等其他
-  實體暫不檢查。
-- 真實 `OllamaClassificationProvider` 未在本機以真實 API key 執行過人工覆核（本開發環境未配置
-  `OLLAMA_API_KEY`）；部署前應以至少 10 個 clause 的真實輸出覆核（spec.md 驗收 2）。
+- 摘要防呆的金額／百分比比對已改為數值比較（`app/domain/services/chinese_numeral.py`），但日期仍為逐字
+  子字串比對；合約編號、當事人名稱等其他實體暫不檢查。
+- 沒有條號的前言／定義段落（`unstructured-*`）有時會被分類為實質條款類型而非 `other`；已於真實 LLM 覆核中
+  觀察到，屬分類邊界模糊而非事實臆造，詳見 spec.md 已知限制。

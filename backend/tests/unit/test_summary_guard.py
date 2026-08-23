@@ -67,3 +67,20 @@ def test_western_calendar_date_marker_is_detected():
     original = "甲方應於乙方交付成果後完成驗收。"
     summary = "甲方應於西元2026年5月1日前完成驗收。"
     assert find_ungrounded_amounts_and_dates(original, summary) != []
+
+
+def test_chinese_percentage_paraphrased_as_arabic_percent_sign_is_grounded():
+    # Regression: observed live during spec.md AC2 manual review — the LLM
+    # commonly rewrites 百分之三十 as 30%; same value, must not be flagged.
+    original = (
+        "第三條　付款方式\n總價款為新臺幣一百萬元整，分三期支付。\n"
+        "1. 簽約後支付百分之三十。\n2. 期中驗收支付百分之四十。\n3. 驗收合格支付百分之三十。"
+    )
+    summary = "總價款為新臺幣一百萬元，分為簽約後支付30%、期中驗收支付40%及驗收合格支付30%三期支付。"
+    assert find_ungrounded_amounts_and_dates(original, summary) == []
+
+
+def test_different_percentage_value_is_still_flagged():
+    original = "簽約後支付百分之三十。"
+    summary = "簽約後支付35%。"
+    assert find_ungrounded_amounts_and_dates(original, summary) != []

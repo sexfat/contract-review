@@ -3,26 +3,25 @@ from __future__ import annotations
 import re
 import unicodedata
 
-# Amounts: Arabic numerals anchored by EITHER a prefix marker (NT$/新臺幣) OR
-# a suffix marker (元/%), so "NT$1,000" (no trailing 元) and "1,000元" (no
-# prefix) both count; 百分之 followed by either Arabic or Chinese numerals;
-# Chinese-numeral amounts ending in 元. Dates: 年/月/日, 民國/西元, and
-# slash-separated forms. See specs/002-llm-clause-classification/design.md
-# "白話摘要防呆".
-_AMOUNT_PATTERNS = [
-    re.compile(r"(?:NT\$|新臺幣)\s*\d[\d,]*(?:\.\d+)?(?:\s*元)?"),
-    re.compile(r"\d[\d,]*(?:\.\d+)?\s*(?:元|%)"),
-    re.compile(r"百分之\s*\d[\d,]*(?:\.\d+)?"),
-    re.compile(r"百分之[一二三四五六七八九十百千萬]+"),
-    re.compile(r"[一二三四五六七八九十百千萬]+元"),
-]
+from app.domain.services.chinese_numeral import parse_chinese_numeral
+
+# Percent/currency values are compared numerically (see chinese_numeral.py) so
+# "百分之三十" (original) and "30%" (LLM's common Arabic-numeral paraphrase)
+# are recognized as the same value instead of failing a literal substring
+# check — observed live during spec.md AC2 manual review. Dates stay a
+# literal substring check: format-only reformatting is a lower-frequency,
+# lower-risk paraphrase and out of scope for this pass.
+_PERCENT_ARABIC = re.compile(r"百分之\s*(\d[\d,]*(?:\.\d+)?)|(\d[\d,]*(?:\.\d+)?)\s*%")
+_PERCENT_CHINESE = re.compile(r"百分之\s*([一二三四五六七八九十百千萬零〇兩]+)")
+_CURRENCY_ARABIC = re.compile(r"(?:NT\$|新臺幣)?\s*(\d[\d,]*(?:\.\d+)?)\s*元")
+_CURRENCY_ARABIC_PREFIXED = re.compile(r"(?:NT\$|新臺幣)\s*(\d[\d,]*(?:\.\d+)?)(?!\s*元)")
+_CURRENCY_CHINESE = re.compile(r"([一二三四五六七八九十百千萬零〇兩]+)元")
+
 _DATE_PATTERNS = [
     re.compile(r"(?:民國|西元)\s*\d{1,4}\s*年(?:\s*\d{1,2}\s*月(?:\s*\d{1,2}\s*日)?)?"),
     re.compile(r"\d{2,4}\s*年\s*\d{1,2}\s*月(?:\s*\d{1,2}\s*日)?"),
     re.compile(r"\d{4}/\d{1,2}/\d{1,2}"),
 ]
-
-_ALL_PATTERNS = _AMOUNT_PATTERNS + _DATE_PATTERNS
 
 
 def _normalize(text: str) -> str:
@@ -30,17 +29,81 @@ def _normalize(text: str) -> str:
     return unicodedata.normalize("NFKC", text)
 
 
+def _to_float(raw: str) -> float | None:
+    try:
+        return float(raw.replace(",", ""))
+    except ValueError:
+        return None
+
+
+def _extract_values(text: str, pattern: re.Pattern[str], *, chinese: bool) -> set[float]:
+    values: set[float] = set()
+    for match in pattern.finditer(text):
+        raw = next((g for g in match.groups() if g), None)
+        if raw is None:
+            continue
+        value = parse_chinese_numeral(raw) if chinese else _to_float(raw)
+        if value is not None:
+            values.add(value)
+    return values
+
+
+def _percent_matches(text: str) -> list[tuple[str, float]]:
+    matches: list[tuple[str, float]] = []
+    for match in _PERCENT_ARABIC.finditer(text):
+        raw = next(g for g in match.groups() if g)
+        value = _to_float(raw)
+        if value is not None:
+            matches.append((match.group(0), value))
+    for match in _PERCENT_CHINESE.finditer(text):
+        value = parse_chinese_numeral(match.group(1))
+        if value is not None:
+            matches.append((match.group(0), value))
+    return matches
+
+
+def _currency_matches(text: str) -> list[tuple[str, float]]:
+    matches: list[tuple[str, float]] = []
+    for match in _CURRENCY_ARABIC.finditer(text):
+        value = _to_float(match.group(1))
+        if value is not None:
+            matches.append((match.group(0), value))
+    for match in _CURRENCY_ARABIC_PREFIXED.finditer(text):
+        value = _to_float(match.group(1))
+        if value is not None:
+            matches.append((match.group(0), value))
+    for match in _CURRENCY_CHINESE.finditer(text):
+        value = parse_chinese_numeral(match.group(1))
+        if value is not None:
+            matches.append((match.group(0), value))
+    return matches
+
+
 def find_ungrounded_amounts_and_dates(original_text: str, plain_summary: str) -> list[str]:
-    """Return the amount/date substrings in plain_summary that cannot be
-    found in original_text (after full/half-width normalization). An empty
-    list means the summary passed the grounding check."""
+    """Return the amount/percent/date substrings in plain_summary that
+    cannot be grounded in original_text. Amounts/percentages are compared by
+    numeric value (Chinese-numeral <-> Arabic-numeral paraphrases count as
+    grounded); dates are compared as literal substrings (after full/half-width
+    normalization). An empty list means the summary passed the check."""
     normalized_original = _normalize(original_text)
     normalized_summary = _normalize(plain_summary)
 
     ungrounded: list[str] = []
-    for pattern in _ALL_PATTERNS:
+
+    grounded_percents = {v for _, v in _percent_matches(normalized_original)}
+    for raw, value in _percent_matches(normalized_summary):
+        if value not in grounded_percents:
+            ungrounded.append(raw)
+
+    grounded_currency = {v for _, v in _currency_matches(normalized_original)}
+    for raw, value in _currency_matches(normalized_summary):
+        if value not in grounded_currency:
+            ungrounded.append(raw)
+
+    for pattern in _DATE_PATTERNS:
         for match in pattern.finditer(normalized_summary):
             candidate = match.group(0)
             if candidate not in normalized_original:
                 ungrounded.append(candidate)
+
     return ungrounded

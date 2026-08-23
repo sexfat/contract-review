@@ -58,10 +58,10 @@
 
 ## 驗收
 
-- [x] 執行完整測試套件（`uv run pytest`）：58 passed，未依賴真實 Ollama 服務。
-- [ ] 以 001 三份 fixture 人工覆核至少 10 個 clause 的分類與摘要，確認未包含原文未提及的金額／日期／義務
-      （spec.md 驗收 2）。**尚未完成**：本開發環境未配置 `OLLAMA_API_KEY`，無法呼叫真實 Ollama Cloud
-      服務；需在有金鑰的環境執行 `POST /classify` 後補做，結果記錄於 spec.md。
+- [x] 執行完整測試套件（`uv run pytest`）：72 passed，未依賴真實 Ollama 服務。
+- [x] 以 001 三份 fixture 人工覆核至少 10 個 clause 的分類與摘要，確認未包含原文未提及的金額／日期／義務
+      （spec.md 驗收 2）。已以使用者提供的 `OLLAMA_API_KEY` 對真實 `gemma4:31b-cloud` 執行，覆核 12 個
+      clause，結果記錄於 spec.md 驗收紀錄（含發現並修正的 `SummaryGuard` 數值比較問題）。
 - [x] 確認無任何測試快照、log 或錯誤訊息包含合約原文、摘要全文或 `OLLAMA_API_KEY`。
 - [x] 更新 `specs/002-llm-clause-classification/spec.md` 的驗收紀錄與已知限制。
 - [x] 請 Codex 覆核實作是否符合 spec.md／design.md，特別是重試/fallback 邏輯與錯誤碼對照。
