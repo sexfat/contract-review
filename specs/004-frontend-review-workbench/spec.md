@@ -100,6 +100,13 @@ Then 前端顯示後端的繁中 `message`，不在 UI 或 console 顯示合約�
 - `npm test -- --run`：通過。Codex 實作時 sandbox 無法解析 `registry.npmjs.org`（`ENOTFOUND`），
   之後由 Claude 於有網路環境執行 `npm install`（208 packages）並重跑測試：4 個測試檔、6 項測試全數通過。
 - Acceptance criteria 1–7 皆已透過 API／store／component 分層、production build 與 Vitest 通過驗證。
+- Claude 以 `npm run dev` + 實際後端（`uvicorn`，真實 `OLLAMA_API_KEY`）執行一次完整端對端視覺驗證：上傳
+  `specs/001-docx-clause-extraction/fixtures/normal-numbering.docx`→ parse → classify → review → report，
+  左欄正確顯示 4 條原文、右欄顯示空風險提示（因正式 `data/risk_rules.seed.json` 全數為 `draft`，符合
+  已知限制）；切換甲方／乙方視角時後端 log 未出現新的 request，UI 立即反映切換。過程中發現前端 dev
+  server 與後端不同 port 時會被瀏覽器 CORS 擋下（`Failed to fetch`）；修正方式是在 `vite.config.ts`
+  加入 dev-only `/api` proxy（預設轉發到 `http://127.0.0.1:8000`，可用 `VITE_DEV_API_PROXY_TARGET`
+  覆寫），維持預設 `VITE_API_BASE_URL` 同源行為不變，不需修改後端。
 - Claude 覆核程式碼：`review.api.ts` 僅用 `FormData` 上傳、不手動設定 `Content-Type`；`http.ts` 不在錯誤或
   網路例外訊息中夾帶檔案內容；`review.store.ts` 的 `setPerspective` 為同步 state 變更、`sortRisksForPerspective`
   回傳淺拷貝，不改變 `report` 參照；`RiskCard.vue` 對缺條號／來源皆有 fallback 文案並同時顯示另一方風險等級
