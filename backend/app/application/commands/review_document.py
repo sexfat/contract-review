@@ -34,6 +34,10 @@ class ReviewDocumentCommand:
     risk_provider: RiskAssessmentProvider
     max_retries: int = 1
 
+    def __post_init__(self) -> None:
+        if not 0 <= self.max_retries <= 1:
+            raise ValueError("max_retries must be 0 or 1 (spec.md FR8: 最多重試一次)")
+
     def execute(self, document_id: str) -> Document:
         document = self.document_repository.get(document_id)
         if document is None:

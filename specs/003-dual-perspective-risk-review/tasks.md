@@ -82,5 +82,9 @@
       spec.md 決策由使用者手動完成，不由本次實作代勞。
 - [x] 確認無任何測試快照、log 或錯誤訊息包含合約原文、風險敘述全文或規則內容全文。
 - [x] 更新 `specs/003-dual-perspective-risk-review/spec.md` 的驗收紀錄與已知限制。
-- [ ] 請 Codex 覆核實作是否符合 spec.md／design.md，特別是 `(clause, rule)` 逐筆重試/捨棄邏輯、
+- [x] 請 Codex 覆核實作是否符合 spec.md／design.md，特別是 `(clause, rule)` 逐筆重試/捨棄邏輯、
       `source_refs` 決定性設定是否確實未信任 LLM 輸出、`build_review_report` 是否真的不呼叫 LLM。
+      結論：三項皆符合，`source_refs`／`risk_id` 完全由應用層決定性產生，LLM schema 本身不含
+      `source_refs` 欄位；`build_review_report` 為純 Python，未 import 任何 LLM/provider。額外發現
+      `ReviewDocumentCommand.max_retries` 缺少上限驗證，已於 `review_document.py` 加上
+      `__post_init__` 檢查（`0 <= max_retries <= 1`，對應 spec.md FR8「驗證失敗的風險最多重試一次」）。
