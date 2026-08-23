@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# Node / frontend (future)
+node_modules/
+dist/
+
+# Local runtime data
+backend/var/

@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ClauseListResponse",
+  "type": "object",
+  "required": ["document_id", "status", "clauses"],
+  "properties": {
+    "document_id": {"type": "string", "minLength": 1},
+    "status": {"const": "parsed"},
+    "clauses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["clause_id", "clause_type", "original_text", "location"],
+        "properties": {
+          "clause_id": {"type": "string", "minLength": 1},
+          "clause_type": {"const": "other"},
+          "original_text": {"type": "string", "minLength": 1},
+          "location": {
+            "type": "object",
+            "required": ["source_start_index", "source_end_index", "paragraph_ids"],
+            "properties": {
+              "article_no": {"type": ["string", "null"]},
+              "heading": {"type": ["string", "null"]},
+              "source_start_index": {"type": "integer", "minimum": 0},
+              "source_end_index": {"type": "integer", "minimum": 0},
+              "paragraph_ids": {"type": "array", "items": {"type": "string"}},
+              "table_refs": {"type": "array", "items": {"type": "string"}}
+            }
+          }
+        }
+      }
+    }
+  }
+}
