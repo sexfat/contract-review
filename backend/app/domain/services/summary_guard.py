@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import re
-import unicodedata
 
 from app.domain.services.chinese_numeral import parse_chinese_numeral
+from app.domain.services.text_normalize import normalize
 
 # Percent/currency values are compared numerically (see chinese_numeral.py) so
 # "百分之三十" (original) and "30%" (LLM's common Arabic-numeral paraphrase)
@@ -24,28 +24,11 @@ _DATE_PATTERNS = [
 ]
 
 
-def _normalize(text: str) -> str:
-    # Full-width digits/punctuation -> half-width, so "１００元" matches "100元".
-    return unicodedata.normalize("NFKC", text)
-
-
 def _to_float(raw: str) -> float | None:
     try:
         return float(raw.replace(",", ""))
     except ValueError:
         return None
-
-
-def _extract_values(text: str, pattern: re.Pattern[str], *, chinese: bool) -> set[float]:
-    values: set[float] = set()
-    for match in pattern.finditer(text):
-        raw = next((g for g in match.groups() if g), None)
-        if raw is None:
-            continue
-        value = parse_chinese_numeral(raw) if chinese else _to_float(raw)
-        if value is not None:
-            values.add(value)
-    return values
 
 
 def _percent_matches(text: str) -> list[tuple[str, float]]:
@@ -85,8 +68,8 @@ def find_ungrounded_amounts_and_dates(original_text: str, plain_summary: str) ->
     numeric value (Chinese-numeral <-> Arabic-numeral paraphrases count as
     grounded); dates are compared as literal substrings (after full/half-width
     normalization). An empty list means the summary passed the check."""
-    normalized_original = _normalize(original_text)
-    normalized_summary = _normalize(plain_summary)
+    normalized_original = normalize(original_text)
+    normalized_summary = normalize(plain_summary)
 
     ungrounded: list[str] = []
 

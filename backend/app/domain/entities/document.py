@@ -11,6 +11,8 @@ class DocumentStatus(str, Enum):
     PARSED = "parsed"
     CLASSIFYING = "classifying"
     CLASSIFIED = "classified"
+    REVIEWING = "reviewing"
+    COMPLETED = "completed"
     FAILED = "failed"
 
 

@@ -10,7 +10,13 @@ from app.domain.errors import DocumentNotFoundError, DocumentNotReadyError, erro
 from app.domain.schemas.clause import ClauseListResponse
 from app.domain.schemas.extracted_clause import ClassifiedClauseListResponse
 
-_NOT_READY_STATUSES = (DocumentStatus.UPLOADED, DocumentStatus.PARSING, DocumentStatus.CLASSIFYING)
+_NOT_READY_STATUSES = (
+    DocumentStatus.UPLOADED,
+    DocumentStatus.PARSING,
+    DocumentStatus.CLASSIFYING,
+    DocumentStatus.REVIEWING,
+)
+_CLASSIFIED_SHAPE_STATUSES = (DocumentStatus.CLASSIFIED, DocumentStatus.COMPLETED)
 
 
 @dataclass
@@ -30,7 +36,7 @@ class GetClausesQuery:
         if document.status == DocumentStatus.FAILED:
             raise error_for_code(document.error_code or "INVALID_DOCX")
 
-        if document.status == DocumentStatus.CLASSIFIED:
+        if document.status in _CLASSIFIED_SHAPE_STATUSES:
             clauses = self.classification_repository.list_for_document(document_id)
             return ClassifiedClauseListResponse(document_id=document_id, status="classified", clauses=clauses)
 

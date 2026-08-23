@@ -5,6 +5,7 @@ import threading
 from app.domain.entities.document import Document, DocumentStatus
 from app.domain.schemas.clause import ParsedClause
 from app.domain.schemas.extracted_clause import ExtractedClause
+from app.domain.schemas.risk_assessment import RiskAssessment
 
 
 class InMemoryDocumentRepository:
@@ -63,3 +64,20 @@ class InMemoryClauseClassificationRepository:
     def list_for_document(self, document_id: str) -> list[ExtractedClause]:
         with self._lock:
             return list(self._clauses.get(document_id, []))
+
+
+class InMemoryRiskAssessmentRepository:
+    """Kept separate from 001/002's repositories so 003 cannot corrupt their
+    data (design.md "回滾方式")."""
+
+    def __init__(self) -> None:
+        self._risks: dict[str, list[RiskAssessment]] = {}
+        self._lock = threading.Lock()
+
+    def replace_for_document(self, document_id: str, risks: list[RiskAssessment]) -> None:
+        with self._lock:
+            self._risks[document_id] = list(risks)
+
+    def list_for_document(self, document_id: str) -> list[RiskAssessment]:
+        with self._lock:
+            return list(self._risks.get(document_id, []))

@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.routes_classification import router as classification_router
 from app.api.routes_documents import router as documents_router
+from app.api.routes_review import router as review_router
 from app.domain.errors import DomainError
 
 logger = logging.getLogger("contract_review")
@@ -25,6 +26,7 @@ _ERROR_STATUS_CODES: dict[str, int] = {
 app = FastAPI(title="合約審閱助手 API")
 app.include_router(documents_router)
 app.include_router(classification_router)
+app.include_router(review_router)
 
 
 @app.exception_handler(DomainError)

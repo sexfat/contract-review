@@ -155,3 +155,41 @@ Then 回傳 `ReviewReport`，包含 `contract_title`、依風險等級與數量�
   **需使用者（建議搭配具法律／合約背景者）逐條審核後，將 `status` 改為 `"reviewed"`，本 feature 的風險評估
   流程才會實際產生輸出**。未審核前，系統行為等同「規則庫為空」，不會顯示任何風險（符合「保守措辭」與
   「不得將未審核內容當作依據」原則，見 `docs/DEVELOPMENT_SPEC.md` §2、§9）。
+
+## 驗收紀錄
+
+- 實作位置：`backend/app`（domain/application/infrastructure/api，沿用 001/002 的分層）；測試位置：
+  `backend/tests`。
+- `uv run pytest`：108 passed（001/002 既有測試維持通過 + 003 新增 36 個 unit／integration／API contract
+  測試），全程使用 `FakeRiskAssessmentProvider`，不呼叫真實 Ollama 服務。
+- `data/risk_rules.seed.json`：32 筆規則，涵蓋 10 大主題，全數 `status: "draft"`（符合「已確認決策」2）。
+- 以 `specs/003-dual-perspective-risk-review/fixtures/reviewed_test_rules.json`（測試用、非正式規則庫）搭配
+  使用者提供的 `OLLAMA_API_KEY`，對 001 的 `normal-numbering.docx`／`mixed-numbering.docx` 執行完整
+  parse → classify → review 真實流程：
+  - 共產生 4 筆 `RiskAssessment`，`evidence.quote` 逐一比對後皆為原文子字串，`source_refs` 皆僅含單一實際
+    使用的規則 ID。
+  - 措辭皆為保守用語（「可能」「建議確認」「可考慮」），未出現黑名單斷言詞。
+  - **重要發現並修正**：`with_structured_output()` 對 `gemma4:31b-cloud`（透過 Ollama Cloud）在較複雜的
+    `RiskAssessmentResult` schema（含巢狀 `evidence` 陣列）上**不可靠**——模型會自創 JSON 結構（例如巢狀
+    `analysis`／`review_results`），完全忽略指定的 Pydantic schema，甚至曾直接回覆「請提供 JSON Schema」；
+    可重現、非偶發。修正方式：在 system prompt 中明文寫出範例 JSON（含欄位名稱與型別），而非只依賴
+    `with_structured_output` 的自動 schema 注入。修正後穩定產生正確格式。
+  - 同時發現：`applicable=false` 時模型會對 `risk_for_client`／`risk_for_vendor`／`concern`／`suggestion`
+    填入空字串，導致 enum／`min_length=1` 驗證失敗；已在 prompt 中明確給出「不適用」情境的範例 JSON
+    （`risk_for_client`/`risk_for_vendor` 填 `"none"`，`concern`/`suggestion` 填 `"不適用"`）修正，
+    修正後穩定通過。
+  - 002 的 `OllamaClassificationProvider` 因 schema 較簡單、欄位命名恰好符合模型直覺，過去未觸發此問題，
+    但屬僥倖而非可靠保證；已比照套用相同的「prompt 內明文 JSON 範例」寫法強化，並確認強化後分類功能不受
+    影響（重跑 002 的即時驗證與既有測試皆通過）。
+- Acceptance criteria 1–7：以上述自動化測試與真實 LLM 流程共同涵蓋。
+
+## 已知限制
+
+- **`data/risk_rules.seed.json` 全數為 `draft`，尚未經使用者審核為 `reviewed`**；在使用者完成審核前，
+  `POST /review` 對正式資料不會產生任何風險（刻意的安全預設，見「已確認決策」2）。
+- `RiskAssessmentResult` 依賴 prompt 內明文 JSON 範例而非可信賴的 schema 強制約束（因 Ollama Cloud 對
+  `gemma4:31b-cloud` 未可靠支援 `format=json_schema`）；若更換模型或供應商，需重新驗證此手法是否仍必要。
+- 每個 `(clause, matched rule)` 各呼叫一次 LLM；規則庫變大後呼叫數量會隨 clause 數 × 命中規則數成長，
+  尚未做批次合併優化（design.md「不確定事項」已記錄）。
+- 保守措辭黑名單為初版靜態清單，未涵蓋所有可能的斷言語氣；正式 judge gate（005）上線後可作為第二層防護。
+- 尚未實作前端顯示；留待 004-vue-review-workbench。
