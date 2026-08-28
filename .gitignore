@@ -14,3 +14,8 @@ dist/
 
 # Local runtime data
 backend/var/
+
+# Real contracts dropped at repo root for manual local testing — must never
+# be committed (see specs/*/fixtures/README.md: no real client contracts in
+# version control). Does not match tracked fixtures under specs/*/fixtures/.
+/*.docx
