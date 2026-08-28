@@ -54,7 +54,7 @@ def _rule(rule_id: str = "rule-1", trigger_patterns: list[str] | None = None) ->
         id=rule_id,
         version=1,
         jurisdiction="TW",
-        clause_type=ClauseType.PAYMENT,
+        clause_types=[ClauseType.PAYMENT],
         topic="測試主題",
         trigger_patterns=trigger_patterns or ["新臺幣"],
         risk_for_client=RiskLevel.LOW,

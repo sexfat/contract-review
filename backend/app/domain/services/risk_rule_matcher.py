@@ -6,10 +6,11 @@ from app.domain.services.text_normalize import normalize
 
 
 def match_rules(clause: ExtractedClause, rules: list[RiskRule]) -> list[RiskRule]:
-    """Deterministic, pure-Python candidate matching: same clause_type AND at
-    least one trigger_pattern substring found in the clause's original_text
-    (after full/half-width normalization). Callers must pass only
-    `status == "reviewed"` rules — this function does not filter by status.
+    """Deterministic, pure-Python candidate matching: clause.clause_type is
+    one of the rule's clause_types AND at least one trigger_pattern
+    substring found in the clause's original_text (after full/half-width
+    normalization). Callers must pass only `status == "reviewed"` rules —
+    this function does not filter by status.
 
     A match here is only a *candidate* — real applicability is judged by the
     LLM via RiskAssessmentResult.applicable (see
@@ -18,7 +19,7 @@ def match_rules(clause: ExtractedClause, rules: list[RiskRule]) -> list[RiskRule
     normalized_text = normalize(clause.original_text)
     matched: list[RiskRule] = []
     for rule in rules:
-        if rule.clause_type != clause.clause_type:
+        if clause.clause_type not in rule.clause_types:
             continue
         if any(normalize(pattern) in normalized_text for pattern in rule.trigger_patterns):
             matched.append(rule)

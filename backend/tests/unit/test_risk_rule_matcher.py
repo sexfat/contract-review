@@ -20,7 +20,7 @@ def _clause(clause_type: ClauseType, text: str) -> ExtractedClause:
 
 
 def _rule(
-    clause_type: ClauseType,
+    clause_types: ClauseType | list[ClauseType],
     trigger_patterns: list[str],
     *,
     status: str = "reviewed",
@@ -30,7 +30,7 @@ def _rule(
         id=rule_id,
         version=1,
         jurisdiction="TW",
-        clause_type=clause_type,
+        clause_types=[clause_types] if isinstance(clause_types, ClauseType) else clause_types,
         topic="測試主題",
         trigger_patterns=trigger_patterns,
         risk_for_client=RiskLevel.LOW,
@@ -80,3 +80,19 @@ def test_caller_is_responsible_for_filtering_status_and_jurisdiction():
     clause = _clause(ClauseType.PAYMENT, "新臺幣一百萬元。")
     draft_rule = _rule(ClauseType.PAYMENT, ["新臺幣"], status="draft")
     assert match_rules(clause, [draft_rule]) == [draft_rule]
+
+
+def test_matches_when_clause_type_is_any_of_rules_multiple_types():
+    # Real-world finding: 001 splits by 條 (article), and one article can
+    # bundle multiple topics under a single 002 clause_type label (e.g. a
+    # "交付方式與委製費用" article whose last item is actually about the
+    # acceptance deadline, but 002 classifies the whole article as payment).
+    clause = _clause(ClauseType.PAYMENT, "甲方應於乙方完成後無限期進行驗收，如有不通過應立即改善。")
+    rule = _rule([ClauseType.ACCEPTANCE, ClauseType.PAYMENT], ["無限期進行驗收"])
+    assert match_rules(clause, [rule]) == [rule]
+
+
+def test_no_match_when_clause_type_not_in_any_of_rules_types():
+    clause = _clause(ClauseType.SCOPE, "乙方應完成系統開發，無限期進行驗收。")
+    rule = _rule([ClauseType.ACCEPTANCE, ClauseType.PAYMENT], ["無限期進行驗收"])
+    assert match_rules(clause, [rule]) == []
