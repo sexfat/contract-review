@@ -17,7 +17,9 @@ from app.infrastructure.repositories.memory_repository import (
     InMemoryDocumentRepository,
     InMemoryRiskAssessmentRepository,
 )
+from tests.fakes.fake_knowledge_repository import FakeKnowledgeRepository
 from tests.fakes.fake_risk_assessment_provider import FakeRiskAssessmentProvider
+from tests.fakes.fake_risk_judge_provider import FakeRiskJudgeProvider
 
 FIXTURES_001 = Path(__file__).resolve().parents[3] / "specs" / "001-docx-clause-extraction" / "fixtures"
 TEST_RULES_PATH = (
@@ -124,6 +126,8 @@ def test_review_flow_matches_review_report_schema():
         risk_rule_repository=_StaticRuleRepo(),
         risk_assessment_repository=risk_assessment_repository,
         risk_provider=llm,
+        knowledge_repository=FakeKnowledgeRepository(),
+        judge_provider=FakeRiskJudgeProvider(),
     )
     document = command.execute(document_id)
     assert document.status == DocumentStatus.COMPLETED

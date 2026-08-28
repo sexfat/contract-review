@@ -5,8 +5,10 @@ from dataclasses import dataclass
 
 from app.application.ports.clause_classification_repository import ClauseClassificationRepository
 from app.application.ports.document_repository import DocumentRepository
+from app.application.ports.knowledge_repository import KnowledgeRepository
 from app.application.ports.risk_assessment_provider import RiskAssessmentProvider
 from app.application.ports.risk_assessment_repository import RiskAssessmentRepository
+from app.application.ports.risk_judge_provider import RiskJudgeProvider
 from app.application.ports.risk_rule_repository import RiskRuleRepository
 from app.domain.entities.document import Document, DocumentStatus
 from app.domain.errors import (
@@ -16,7 +18,9 @@ from app.domain.errors import (
     LLMProviderUnavailableError,
 )
 from app.domain.schemas.extracted_clause import ExtractedClause
+from app.domain.schemas.judge import JudgeRequest
 from app.domain.schemas.llm_risk_assessment import RiskAssessmentRequest, RiskAssessmentResult
+from app.domain.schemas.retrieval import RetrievalQuery, RetrievedKnowledge
 from app.domain.schemas.risk_assessment import EvidenceRef, RiskAssessment
 from app.domain.schemas.risk_rule import RiskRule
 from app.domain.services.conservative_language_guard import find_banned_phrase
@@ -32,6 +36,8 @@ class ReviewDocumentCommand:
     risk_rule_repository: RiskRuleRepository
     risk_assessment_repository: RiskAssessmentRepository
     risk_provider: RiskAssessmentProvider
+    knowledge_repository: KnowledgeRepository
+    judge_provider: RiskJudgeProvider
     max_retries: int = 1
 
     def __post_init__(self) -> None:
@@ -53,8 +59,18 @@ class ReviewDocumentCommand:
         risks: list[RiskAssessment] = []
         try:
             for clause in clauses:
-                for rule in match_rules(clause, rules):
-                    risk = self._assess_one(clause, rule, document.checksum)
+                matched = match_rules(clause, rules)
+                if not matched:
+                    continue  # FR2: only retrieve for clauses with at least one matched rule
+                retrieved_sources = self.knowledge_repository.search(
+                    RetrievalQuery(
+                        clause_type=clause.clause_type,
+                        query_text=clause.original_text,
+                        jurisdiction="TW",
+                    )
+                )
+                for rule in matched:
+                    risk = self._assess_one(clause, rule, retrieved_sources, document.checksum)
                     if risk is not None:
                         risks.append(risk)
         except LLMProviderUnavailableError as exc:
@@ -68,7 +84,13 @@ class ReviewDocumentCommand:
         assert reviewed_document is not None
         return reviewed_document
 
-    def _assess_one(self, clause: ExtractedClause, rule: RiskRule, checksum: str) -> RiskAssessment | None:
+    def _assess_one(
+        self,
+        clause: ExtractedClause,
+        rule: RiskRule,
+        retrieved_sources: list[RetrievedKnowledge],
+        checksum: str,
+    ) -> RiskAssessment | None:
         request = RiskAssessmentRequest(
             clause_id=clause.clause_id,
             clause_type=clause.clause_type,
@@ -78,6 +100,7 @@ class ReviewDocumentCommand:
             rule_risk_explanation=rule.risk_explanation,
             rule_review_questions=rule.review_questions,
             rule_suggestion_template=rule.suggestion_template,
+            retrieved_sources=retrieved_sources,
         )
 
         for _ in range(self.max_retries + 1):
@@ -94,12 +117,34 @@ class ReviewDocumentCommand:
             if find_banned_phrase(result.concern) or find_banned_phrase(result.suggestion):
                 continue
 
-            return self._to_risk_assessment(clause, rule, result, checksum)
+            try:
+                judge_result = self.judge_provider.judge(
+                    JudgeRequest(
+                        clause_original_text=clause.original_text,
+                        risk_for_client=result.risk_for_client,
+                        risk_for_vendor=result.risk_for_vendor,
+                        concern=result.concern,
+                        suggestion=result.suggestion,
+                        evidence=result.evidence,
+                        retrieved_sources=retrieved_sources,
+                    )
+                )
+            except LLMOutputInvalidError:
+                continue
+            if not judge_result.passed:
+                continue  # judge gate 不通過視同驗證失敗，共用同一組重試（005 已確認決策 3）
+
+            return self._to_risk_assessment(clause, rule, result, retrieved_sources, checksum)
 
         return None  # 重試後仍未通過驗證：捨棄，不產生佔位風險
 
     def _to_risk_assessment(
-        self, clause: ExtractedClause, rule: RiskRule, result: RiskAssessmentResult, checksum: str
+        self,
+        clause: ExtractedClause,
+        rule: RiskRule,
+        result: RiskAssessmentResult,
+        retrieved_sources: list[RetrievedKnowledge],
+        checksum: str,
     ) -> RiskAssessment:
         risk_id = hashlib.sha256(f"{checksum}{clause.clause_id}{rule.id}".encode()).hexdigest()[:20]
         return RiskAssessment(
@@ -114,7 +159,7 @@ class ReviewDocumentCommand:
                 EvidenceRef(clause_id=clause.clause_id, quote=e.quote, rationale=e.rationale)
                 for e in result.evidence
             ],
-            source_refs=[rule.id],
+            source_refs=[rule.id, *(s.knowledge_id for s in retrieved_sources)],
             confidence=result.confidence,
             requires_human_review=False,
         )

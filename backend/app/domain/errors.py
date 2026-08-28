@@ -63,6 +63,18 @@ class LLMProviderUnavailableError(DomainError):
     user_message = "分析服務暫時無法使用，請稍後再試。"
 
 
+class KnowledgeIndexUnavailableError(DomainError):
+    """Raised only when a LocalVectorKnowledgeRepository was actually
+    constructed but data/legal_sources.embeddings.npz is malformed or out of
+    sync with legal_sources.seed.json's knowledge_ids — fail fast like 001's
+    fixture loading. An index file that simply doesn't exist yet is NOT this
+    error: dependency wiring falls back to NullKnowledgeRepository instead
+    (specs/005-rag-and-judge-gate/spec.md Failure handling)."""
+
+    error_code = "KNOWLEDGE_INDEX_UNAVAILABLE"
+    user_message = "知識庫索引無法讀取，請聯繫系統管理員。"
+
+
 _ERROR_CODE_REGISTRY: dict[str, type[DomainError]] = {
     cls.error_code: cls
     for cls in (
@@ -74,6 +86,7 @@ _ERROR_CODE_REGISTRY: dict[str, type[DomainError]] = {
         DocumentNotFoundError,
         LLMOutputInvalidError,
         LLMProviderUnavailableError,
+        KnowledgeIndexUnavailableError,
     )
 }
 

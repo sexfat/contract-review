@@ -15,6 +15,17 @@ class LLMSettings(BaseSettings):
     ollama_base_url: AnyHttpUrl = Field(default=AnyHttpUrl("https://ollama.com"), validation_alias="OLLAMA_BASE_URL")
     ollama_model: str = Field(min_length=1, default="gemma4:31b-cloud", validation_alias="OLLAMA_MODEL")
     request_timeout_seconds: float = Field(default=30.0, gt=0)
+    # None until an embedding model is pulled locally. Ollama Cloud hosts no
+    # embedding models at all (confirmed live against ollama.com/search?c=cloud
+    # — see specs/005-rag-and-judge-gate/spec.md 待人工完成事項), so this
+    # deliberately points at a *local* Ollama daemon, separate from
+    # ollama_base_url (cloud, used for the chat/judge models). While unset,
+    # dependency wiring falls back to NullKnowledgeRepository rather than
+    # failing — see app/api/dependencies.py get_embedding_provider().
+    ollama_embedding_model: str | None = Field(default=None, validation_alias="OLLAMA_EMBEDDING_MODEL")
+    ollama_embedding_base_url: AnyHttpUrl = Field(
+        default=AnyHttpUrl("http://localhost:11434"), validation_alias="OLLAMA_EMBEDDING_BASE_URL"
+    )
 
 
 def load_llm_settings() -> LLMSettings:

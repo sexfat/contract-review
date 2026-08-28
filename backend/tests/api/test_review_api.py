@@ -25,8 +25,10 @@ from app.domain.schemas.risk_level import RiskLevel
 from app.domain.schemas.risk_rule import RiskRule
 from app.infrastructure.repositories.json_risk_rule_repository import JsonRiskRuleRepository
 from app.main import app
+from tests.fakes.fake_knowledge_repository import FakeKnowledgeRepository
 from tests.fakes.fake_llm_provider import FakeLLMProvider
 from tests.fakes.fake_risk_assessment_provider import FakeRiskAssessmentProvider
+from tests.fakes.fake_risk_judge_provider import FakeRiskJudgeProvider
 
 FIXTURES_DIR = Path(__file__).resolve().parents[3] / "specs" / "001-docx-clause-extraction" / "fixtures"
 TEST_RULES_PATH = (
@@ -117,6 +119,8 @@ def _override_review_provider(risk_provider: FakeRiskAssessmentProvider, rules: 
         risk_rule_repository=_StaticRiskRuleRepository(rules),
         risk_assessment_repository=get_risk_assessment_repository(),
         risk_provider=risk_provider,
+        knowledge_repository=FakeKnowledgeRepository(),
+        judge_provider=FakeRiskJudgeProvider(),
     )
     app.dependency_overrides[get_review_report_query] = lambda: GetReviewReportQuery(
         document_repository=get_document_repository(),
