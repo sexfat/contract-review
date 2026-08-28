@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "LegalSourceSeedFile",
+  "description": "data/legal_sources.seed.json 的格式：legal_sources 知識庫層每一筆條目的 metadata。embedding 向量不存於此檔，由離線腳本另外產生 data/legal_sources.embeddings.npz（以 knowledge_id 對應）。",
+  "type": "array",
+  "items": { "$ref": "#/$defs/legalSource" },
+  "$defs": {
+    "legalSource": {
+      "type": "object",
+      "required": [
+        "knowledge_id",
+        "corpus",
+        "parent_id",
+        "title",
+        "source_title",
+        "content",
+        "clause_type",
+        "jurisdiction",
+        "source_url",
+        "effective_date",
+        "version",
+        "status",
+        "reviewed_by",
+        "updated_at"
+      ],
+      "properties": {
+        "knowledge_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "穩定唯一 ID，慣例：{法規簡稱}-{條號}[-{項次}]，例如 civil-227、civil-227-2"
+        },
+        "corpus": { "const": "legal_sources" },
+        "parent_id": {
+          "type": ["string", "null"],
+          "description": "若本筆為子片段（例如一條下拆出的某一項），填父層 knowledge_id；本身即為最小完整單元則為 null。檢索命中子片段時，須連同父層完整原文一併取回（見 spec.md「已確認決策」chunking 政策）。"
+        },
+        "title": { "type": "string", "minLength": 1 },
+        "source_title": {
+          "type": "string",
+          "minLength": 1,
+          "description": "來源法規全名，例如「中華民國民法」"
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "description": "法規逐字原文，不得改寫或摘要（呼應「原文優先」原則）"
+        },
+        "clause_type": {
+          "anyOf": [
+            {
+              "enum": [
+                "scope", "acceptance", "payment", "ip", "warranty",
+                "liability", "termination", "penalty", "confidentiality", "other"
+              ]
+            },
+            { "type": "null" }
+          ],
+          "description": "對應合約條款類型；可能適用多種類型則為 null"
+        },
+        "jurisdiction": { "type": "string", "minLength": 1 },
+        "source_url": { "type": ["string", "null"], "format": "uri" },
+        "effective_date": {
+          "type": ["string", "null"],
+          "format": "date",
+          "description": "該法規版本的生效日期"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "法規修正時遞增，用於偵測法規異動需重新審核"
+        },
+        "status": { "enum": ["draft", "reviewed"] },
+        "reviewed_by": { "type": ["string", "null"] },
+        "updated_at": {
+          "type": "string",
+          "format": "date",
+          "description": "這筆資料本身最後編輯日期，區別於 effective_date（法規本身生效日）"
+        }
+      }
+    }
+  }
+}

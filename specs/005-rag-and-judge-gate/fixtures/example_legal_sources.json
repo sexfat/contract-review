@@ -1,0 +1,50 @@
+[
+  {
+    "knowledge_id": "civil-227",
+    "corpus": "legal_sources",
+    "parent_id": null,
+    "title": "民法第227條",
+    "source_title": "中華民國民法",
+    "content": "因可歸責於債務人之事由，致為不完全給付者，債權人得依關於給付遲延或給付不能之規定行使其權利。因不完全給付而生前項以外之損害者，債權人並得請求賠償。",
+    "clause_type": "warranty",
+    "jurisdiction": "TW",
+    "source_url": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=B0000001&flno=227",
+    "effective_date": "2021-01-20",
+    "version": 1,
+    "status": "reviewed",
+    "reviewed_by": "example-fixture",
+    "updated_at": "2026-08-28"
+  },
+  {
+    "knowledge_id": "civil-227-2",
+    "corpus": "legal_sources",
+    "parent_id": "civil-227",
+    "title": "民法第227條第2項",
+    "source_title": "中華民國民法",
+    "content": "因不完全給付而生前項以外之損害者，債權人並得請求賠償。",
+    "clause_type": "warranty",
+    "jurisdiction": "TW",
+    "source_url": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=B0000001&flno=227",
+    "effective_date": "2021-01-20",
+    "version": 1,
+    "status": "reviewed",
+    "reviewed_by": "example-fixture",
+    "updated_at": "2026-08-28"
+  },
+  {
+    "knowledge_id": "civil-492",
+    "corpus": "legal_sources",
+    "parent_id": null,
+    "title": "民法第492條",
+    "source_title": "中華民國民法",
+    "content": "承攬人完成工作，應使其具備約定之品質及無減少或滅失價值，或不適於通常或約定使用之瑕疵。",
+    "clause_type": "acceptance",
+    "jurisdiction": "TW",
+    "source_url": "https://law.moj.gov.tw/LawClass/LawSingle.aspx?pcode=B0000001&flno=492",
+    "effective_date": "2021-01-20",
+    "version": 1,
+    "status": "reviewed",
+    "reviewed_by": "example-fixture",
+    "updated_at": "2026-08-28"
+  }
+]
